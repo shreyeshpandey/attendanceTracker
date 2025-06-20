@@ -8,8 +8,10 @@ import {
   doc,
   updateDoc,
 } from 'firebase/firestore';
+import { useSiteFilter } from '../context/SiteFilterContext';
 
 export default function ManageEmployees() {
+  const { siteFilter } = useSiteFilter(); // 👈 use global filter
   const [employees, setEmployees] = useState([]);
   const [form, setForm] = useState({
     name: '',
@@ -119,9 +121,16 @@ export default function ManageEmployees() {
   const isAddDisabled =
     !form.name || !form.phone || !form.site || !form.rate || !form.role;
 
+  // 👇 Apply global site filter
+  const filteredEmployees = siteFilter
+    ? employees.filter((emp) => emp.site.toLowerCase() === siteFilter.toLowerCase())
+    : employees;
+
   return (
     <div className="manage-employees">
-      <h2 className="page-title">Manage Employees</h2>
+      <h2 className="page-title">
+        Manage Employees{siteFilter ? ` - Site: ${siteFilter}` : ''}
+      </h2>
 
       {/* Add Form */}
       <div className="form-card">
@@ -152,7 +161,7 @@ export default function ManageEmployees() {
       {error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
       {loading ? (
         <p style={{ textAlign: 'center' }}>Loading employees...</p>
-      ) : employees.length === 0 ? (
+      ) : filteredEmployees.length === 0 ? (
         <p style={{ textAlign: 'center' }}>No employees found.</p>
       ) : (
         <table className="employee-table">
@@ -167,7 +176,7 @@ export default function ManageEmployees() {
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp) => (
+            {filteredEmployees.map((emp) => (
               <tr key={emp.id}>
                 {editId === emp.id ? (
                   <>

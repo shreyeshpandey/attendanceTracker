@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import '../styles/style.css';
 import { useAuth } from '../context/AuthContext';
+import { useSiteFilter } from '../context/SiteFilterContext'; // ✅ NEW
 
 const ATTENDANCE_TYPES = [
   { label: 'Absent', value: 0 },
@@ -22,6 +23,7 @@ const ATTENDANCE_TYPES = [
 
 export default function AttendanceTracker() {
   const { role } = useAuth();
+  const { siteFilter } = useSiteFilter(); // ✅ USE FILTER
   const [selectedDate, setSelectedDate] = useState(() =>
     format(new Date(), 'yyyy-MM-dd')
   );
@@ -31,18 +33,22 @@ export default function AttendanceTracker() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'employees'), (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setEmployees(data);
-      setLoading(false);
-    }, (err) => {
-      console.error(err);
-      setError('Failed to load employees');
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      collection(db, 'employees'),
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setEmployees(data);
+        setLoading(false);
+      },
+      (err) => {
+        console.error(err);
+        setError('Failed to load employees');
+        setLoading(false);
+      }
+    );
 
     return () => unsub();
   }, []);
@@ -53,17 +59,21 @@ export default function AttendanceTracker() {
       where('date', '==', selectedDate)
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const data = {};
-      snapshot.forEach((doc) => {
-        const record = doc.data();
-        data[record.employeeId] = record;
-      });
-      setAttendanceData(data);
-    }, (err) => {
-      console.error(err);
-      setError('Failed to load attendance');
-    });
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = {};
+        snapshot.forEach((doc) => {
+          const record = doc.data();
+          data[record.employeeId] = record;
+        });
+        setAttendanceData(data);
+      },
+      (err) => {
+        console.error(err);
+        setError('Failed to load attendance');
+      }
+    );
 
     return () => unsub();
   }, [selectedDate]);
@@ -97,10 +107,17 @@ export default function AttendanceTracker() {
     }
   };
 
+  // ✅ Filter employees based on global siteFilter
+  const filteredEmployees = siteFilter
+    ? employees.filter((emp) => emp.site.toLowerCase() === siteFilter.toLowerCase())
+    : employees;
+    console.log('Current siteFilter:', siteFilter);
   return (
     <div className="tracker-wrapper">
       <div className="tracker-container">
-        <h1 className="tracker-title">Attendance Tracker</h1>
+        <h1 className="tracker-title">
+          Attendance Tracker{siteFilter ? ` - Site: ${siteFilter}` : ''}
+        </h1>
 
         {role === 'viewer' && (
           <p className="view-only-warning">
@@ -119,8 +136,8 @@ export default function AttendanceTracker() {
         {error && <p className="error">{error}</p>}
         {loading ? (
           <p>Loading employees...</p>
-        ) : employees.length === 0 ? (
-          <p>No employees added yet.</p>
+        ) : filteredEmployees.length === 0 ? (
+          <p>No employees found for this site.</p>
         ) : (
           <table className="styled-table">
             <thead>
@@ -132,7 +149,7 @@ export default function AttendanceTracker() {
               </tr>
             </thead>
             <tbody>
-              {employees.map((emp) => {
+              {filteredEmployees.map((emp) => {
                 const current = attendanceData[emp.id] || {};
                 return (
                   <tr key={emp.id}>

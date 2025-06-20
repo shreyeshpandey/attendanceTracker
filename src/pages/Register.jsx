@@ -55,9 +55,8 @@ export default function Register() {
   return (
     <div className="auth-container">
       <form className="auth-card" onSubmit={handleRegister}>
-        <div className="auth-brand">
-          <img src="/logo192.png" alt="Logo" className="auth-logo" />
-          <span className="auth-brand-name">Trackify</span>
+        <div className="auth-logo-container">
+          <img src="/images/AttendEase.png" alt="AttendEase Logo" className="auth-logo" />
         </div>
 
         <h2 className="auth-title">Create an Account</h2>

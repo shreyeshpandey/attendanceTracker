@@ -30,11 +30,10 @@ export default function Login() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <div className="auth-brand">
-          <img src="/logo192.png" alt="Logo" className="auth-logo" />
-          <span className="auth-brand-name">Trackify</span>
+        {/* <div className="auth-brand"> */}
+        <div className="auth-logo-container">
+         <img src="/images/AttendEase.png" alt="AttendEase Logo" className="auth-logo" />
         </div>
-
         <h2 className="auth-title">Login</h2>
 
         <input
