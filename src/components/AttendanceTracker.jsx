@@ -10,7 +10,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import '../styles/style.css';
-import { useAuth } from '../context/AuthContext'; // ✅ Auth context
+import { useAuth } from '../context/AuthContext';
 
 const ATTENDANCE_TYPES = [
   { label: 'Absent', value: 0 },
@@ -21,101 +21,79 @@ const ATTENDANCE_TYPES = [
 ];
 
 export default function AttendanceTracker() {
-  const { role } = useAuth(); // ✅ Get user role
+  const { role } = useAuth();
   const [selectedDate, setSelectedDate] = useState(() =>
     format(new Date(), 'yyyy-MM-dd')
   );
   const [attendanceData, setAttendanceData] = useState({});
   const [employees, setEmployees] = useState([]);
-  const [newName, setNewName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch employees
   useEffect(() => {
-    setLoading(true);
-    const unsub = onSnapshot(
-      collection(db, 'employees'),
-      (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setEmployees(data);
-        setLoading(false);
-      },
-      (err) => {
-        console.error(err);
-        setError('Failed to load employees');
-        setLoading(false);
-      }
-    );
+    const unsub = onSnapshot(collection(db, 'employees'), (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setEmployees(data);
+      setLoading(false);
+    }, (err) => {
+      console.error(err);
+      setError('Failed to load employees');
+      setLoading(false);
+    });
+
     return () => unsub();
   }, []);
 
-  // Fetch attendance for selected date
   useEffect(() => {
     const q = query(
       collection(db, 'attendance'),
       where('date', '==', selectedDate)
     );
 
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const data = {};
-        snapshot.forEach((doc) => {
-          const record = doc.data();
-          data[record.employeeId] = record;
-        });
-        setAttendanceData(data);
-      },
-      (err) => {
-        console.error(err);
-        setError('Failed to load attendance');
-      }
-    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      const data = {};
+      snapshot.forEach((doc) => {
+        const record = doc.data();
+        data[record.employeeId] = record;
+      });
+      setAttendanceData(data);
+    }, (err) => {
+      console.error(err);
+      setError('Failed to load attendance');
+    });
 
     return () => unsub();
   }, [selectedDate]);
 
-  const handleAddEmployee = async () => {
-    if (!newName.trim()) return;
+  const handleChange = async (empId, field, value) => {
+    if (role === 'viewer') return;
 
-    const newId = `emp_${Date.now()}`;
-    const newEmployee = {
-      name: newName.trim(),
-      imageUrl: '',
-    };
-
-    try {
-      await setDoc(doc(db, 'employees', newId), newEmployee);
-      setNewName('');
-    } catch (error) {
-      console.error('Error adding employee:', error);
-      alert('Failed to add employee. Please try again.');
-    }
-  };
-
-  const handleAttendanceChange = async (empId, value) => {
-    if (role === 'viewer') return; // ❌ Block viewers
-    const numericValue = Number(value);
     const docId = `${empId}_${selectedDate}`;
-    const attendanceRecord = {
+    const current = attendanceData[empId] || {
       employeeId: empId,
       date: selectedDate,
-      status: numericValue,
+      status: '',
+      target: '',
+      comment: '',
+    };
+
+    const updated = {
+      ...current,
+      [field]: field === 'status' ? Number(value) : value,
     };
 
     try {
-      await setDoc(doc(db, 'attendance', docId), attendanceRecord);
+      await setDoc(doc(db, 'attendance', docId), updated);
       setAttendanceData((prev) => ({
         ...prev,
-        [empId]: attendanceRecord,
+        [empId]: updated,
       }));
     } catch (err) {
-      console.error('Error updating attendance:', err);
-      alert('Failed to update attendance.');
+      console.error('Error updating:', err);
+      alert('Update failed.');
     }
   };
 
@@ -125,15 +103,12 @@ export default function AttendanceTracker() {
         <h1 className="tracker-title">Attendance Tracker</h1>
 
         {role === 'viewer' && (
-          <p style={{ textAlign: 'center', color: '#999', marginBottom: '1rem' }}>
+          <p className="view-only-warning">
             View-only access. You cannot modify attendance data.
           </p>
         )}
 
         <div className="tracker-header">
-          <select disabled>
-            <option>All Employees</option>
-          </select>
           <input
             type="date"
             value={selectedDate}
@@ -141,74 +116,62 @@ export default function AttendanceTracker() {
           />
         </div>
 
-        {/* Only Admin/Manager can add employee */}
-        {role !== 'viewer' && (
-          <div className="tracker-add-employee">
-            <input
-              type="text"
-              placeholder="Add Employee"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-            <button
-              onClick={handleAddEmployee}
-              disabled={!newName.trim()}
-              style={{ opacity: newName.trim() ? 1 : 0.6 }}
-            >
-              Add
-            </button>
-          </div>
-        )}
-
-        {error && (
-          <p style={{ textAlign: 'center', color: 'red' }}>{error}</p>
-        )}
-
+        {error && <p className="error">{error}</p>}
         {loading ? (
-          <p style={{ textAlign: 'center' }}>Loading employees...</p>
+          <p>Loading employees...</p>
         ) : employees.length === 0 ? (
-          <p style={{ textAlign: 'center' }}>No employees added yet.</p>
+          <p>No employees added yet.</p>
         ) : (
-          <table className="attendance-table">
+          <table className="styled-table">
             <thead>
               <tr>
                 <th>Employee</th>
-                {ATTENDANCE_TYPES.map((type) => (
-                  <th key={type.value}>{type.label}</th>
-                ))}
+                <th>Attendance</th>
+                <th>Target</th>
+                <th>Comments</th>
               </tr>
             </thead>
             <tbody>
-              {employees.map((emp) => (
-                <tr key={emp.id}>
-                  <td>{emp.name}</td>
-                  {ATTENDANCE_TYPES.map((type) => (
-                    <td key={type.value}>
-                      <label
-                        className={`attendance-option ${
-                          attendanceData[emp.id]?.status === type.value
-                            ? 'selected'
-                            : ''
-                        }`}
+              {employees.map((emp) => {
+                const current = attendanceData[emp.id] || {};
+                return (
+                  <tr key={emp.id}>
+                    <td>{emp.name}</td>
+                    <td>
+                      <select
+                        value={current.status || ''}
+                        onChange={(e) => handleChange(emp.id, 'status', e.target.value)}
+                        disabled={role === 'viewer'}
                       >
-                        <input
-                          type="radio"
-                          name={`attendance-${emp.id}-${selectedDate}`}
-                          value={type.value}
-                          checked={
-                            attendanceData[emp.id]?.status === type.value
-                          }
-                          onChange={(e) =>
-                            handleAttendanceChange(emp.id, e.target.value)
-                          }
-                          disabled={role === 'viewer'}
-                        />
-                        {type.label}
-                      </label>
+                        <option value="">-- Select --</option>
+                        {ATTENDANCE_TYPES.map((type) => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    <td>
+                      <input
+                        type="text"
+                        placeholder="Target"
+                        value={current.target || ''}
+                        onChange={(e) => handleChange(emp.id, 'target', e.target.value)}
+                        disabled={role === 'viewer'}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        placeholder="Comment"
+                        value={current.comment || ''}
+                        onChange={(e) => handleChange(emp.id, 'comment', e.target.value)}
+                        disabled={role === 'viewer'}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

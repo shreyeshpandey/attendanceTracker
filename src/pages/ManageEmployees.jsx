@@ -46,18 +46,22 @@ export default function ManageEmployees() {
 
   const handleAdd = async () => {
     const { name, phone, site, rate, role } = form;
+
     if (!name || !phone || !site || !rate || !role) {
       alert('All fields are required');
       return;
     }
 
-    if (isNaN(Number(rate))) {
-      alert('Rate must be a number');
+    if (isNaN(Number(rate)) || Number(rate) <= 0) {
+      alert('Rate must be a valid number greater than 0');
       return;
     }
 
     try {
-      await addDoc(collection(db, 'employees'), form);
+      await addDoc(collection(db, 'employees'), {
+        ...form,
+        rate: Number(rate),
+      });
       setForm({ name: '', phone: '', site: '', rate: '', role: '' });
     } catch (err) {
       console.error(err);
@@ -83,18 +87,22 @@ export default function ManageEmployees() {
 
   const handleSave = async () => {
     const { name, phone, site, rate, role } = editForm;
+
     if (!name || !phone || !site || !rate || !role) {
       alert('All fields are required');
       return;
     }
 
-    if (isNaN(Number(rate))) {
-      alert('Rate must be a number');
+    if (isNaN(Number(rate)) || Number(rate) <= 0) {
+      alert('Rate must be a valid number greater than 0');
       return;
     }
 
     try {
-      await updateDoc(doc(db, 'employees', editId), editForm);
+      await updateDoc(doc(db, 'employees', editId), {
+        ...editForm,
+        rate: Number(rate),
+      });
       setEditId(null);
       setEditForm({});
     } catch (err) {
@@ -108,7 +116,8 @@ export default function ManageEmployees() {
     setEditForm({});
   };
 
-  const isAddDisabled = !form.name || !form.phone || !form.site || !form.rate || !form.role;
+  const isAddDisabled =
+    !form.name || !form.phone || !form.site || !form.rate || !form.role;
 
   return (
     <div className="manage-employees">
@@ -121,10 +130,13 @@ export default function ManageEmployees() {
           {['name', 'phone', 'site', 'rate', 'role'].map((field) => (
             <input
               key={field}
-              type="text"
+              type={field === 'rate' ? 'number' : 'text'}
               placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
               value={form[field]}
-              onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, [field]: e.target.value })
+              }
+              min={field === 'rate' ? '1' : undefined}
             />
           ))}
           <button
@@ -162,7 +174,7 @@ export default function ManageEmployees() {
                     {['name', 'phone', 'site', 'rate', 'role'].map((field) => (
                       <td key={field}>
                         <input
-                          type="text"
+                          type={field === 'rate' ? 'number' : 'text'}
                           value={editForm[field]}
                           onChange={(e) =>
                             setEditForm({
@@ -170,6 +182,7 @@ export default function ManageEmployees() {
                               [field]: e.target.value,
                             })
                           }
+                          min={field === 'rate' ? '1' : undefined}
                         />
                       </td>
                     ))}
@@ -187,9 +200,7 @@ export default function ManageEmployees() {
                     <td>{emp.role}</td>
                     <td>
                       <button onClick={() => startEdit(emp)}>Edit</button>
-                      <button onClick={() => handleDelete(emp.id)}>
-                        Delete
-                      </button>
+                      <button onClick={() => handleDelete(emp.id)}>Delete</button>
                     </td>
                   </>
                 )}

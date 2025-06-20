@@ -68,29 +68,38 @@ export default function MonthlySummary() {
   }, [selectedMonth]);
 
   useEffect(() => {
-    if (employees.length === 0 || attendanceRecords.length === 0) {
-      setSummaryData([]);
-      return;
-    }
-
-    const totals = {};
-    attendanceRecords.forEach(({ employeeId, status }) => {
-      if (!totals[employeeId]) {
-        totals[employeeId] = 0;
-      }
-      totals[employeeId] += Number(status);
-    });
-
-    const result = employees
-      .map((emp) => ({
-        id: emp.id,
-        name: emp.name,
-        total: totals[emp.id] || 0,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    setSummaryData(result);
-  }, [employees, attendanceRecords]);
+   if (employees.length === 0 || attendanceRecords.length === 0) {
+     setSummaryData([]);
+     return;
+   }
+ 
+   const totals = {};
+ 
+   attendanceRecords.forEach(({ employeeId, status }) => {
+     const numericStatus = Number(status);
+     if (!totals[employeeId]) {
+       totals[employeeId] = { total: 0, amount: 0 };
+     }
+     totals[employeeId].total += numericStatus;
+   });
+ 
+   const result = employees
+     .map((emp) => {
+       const total = totals[emp.id]?.total || 0;
+       const rate = emp.rate || 0;
+       const amount = total * rate;
+ 
+       return {
+         id: emp.id,
+         name: emp.name,
+         total,
+         payment: amount
+       };
+     })
+     .sort((a, b) => a.name.localeCompare(b.name));
+ 
+   setSummaryData(result);
+ }, [employees, attendanceRecords]);
 
   const topAttendance = summaryData.length
     ? Math.max(...summaryData.map((emp) => emp.total))
@@ -132,6 +141,7 @@ export default function MonthlySummary() {
                 <tr>
                   <th>Employee</th>
                   <th>Total Attendance</th>
+                  <th>Payment</th> {/* 🆕 */}
                 </tr>
               </thead>
               <tbody>
@@ -146,6 +156,7 @@ export default function MonthlySummary() {
                   >
                     <td>{emp.name}</td>
                     <td>{emp.total}</td>
+                    <td>₹ {emp.payment.toFixed(2)}</td> {/* 🆕 */}
                   </tr>
                 ))}
               </tbody>
@@ -154,6 +165,10 @@ export default function MonthlySummary() {
             {/* 📊 Total */}
             <p style={{ textAlign: 'right', marginTop: '1rem' }}>
               <strong>Total Attendance of All Employees:</strong> {grandTotal}
+            </p>
+            <p style={{ textAlign: 'right', marginTop: '0.5rem' }}>
+              <strong>Total Payment of All Employees:</strong> ₹{' '}
+              {summaryData.reduce((sum, emp) => sum + emp.payment, 0).toFixed(2)}
             </p>
           </>
         )}
