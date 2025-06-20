@@ -173,3 +173,160 @@ body {
  font-size: 0.95rem;
  color: #666;
 }
+
+/* Page layout */
+.page-container {
+ padding: 20px;
+}
+
+.page-title {
+ font-size: 24px;
+ margin-bottom: 20px;
+ font-weight: bold;
+ text-align: center;
+}
+
+.employee-layout {
+ display: flex;
+ gap: 20px;
+ align-items: flex-start;
+}
+
+/* Employee List */
+.employee-list {
+ flex: 1;
+ border-right: 1px solid #ddd;
+ padding-right: 20px;
+ max-height: 70vh;
+ overflow-y: auto;
+}
+
+.employee-item {
+ padding: 10px;
+ margin-bottom: 10px;
+ border: 1px solid #ccc;
+ cursor: pointer;
+ border-radius: 8px;
+ background-color: #f9f9f9;
+ transition: background 0.2s ease;
+}
+
+.employee-item:hover {
+ background-color: #f0f0f0;
+}
+
+.employee-item.active {
+ background-color: #d0ebff;
+ border-color: #90caff;
+}
+
+/* Form Panel */
+.employee-form-wrapper {
+ flex: 2;
+}
+
+.employee-form {
+ display: flex;
+ flex-direction: column;
+ gap: 12px;
+}
+
+.employee-form input {
+ padding: 10px;
+ font-size: 14px;
+ border-radius: 6px;
+ border: 1px solid #ccc;
+}
+
+.form-buttons {
+ display: flex;
+ gap: 10px;
+ margin-top: 10px;
+}
+
+.save-btn {
+ background-color: #28a745;
+ color: white;
+ padding: 8px 16px;
+ border-radius: 6px;
+ border: none;
+ cursor: pointer;
+}
+
+.delete-btn {
+ background-color: #dc3545;
+ color: white;
+ padding: 8px 16px;
+ border-radius: 6px;
+ border: none;
+ cursor: pointer;
+}
+
+.cancel-btn {
+ background-color: #6c757d;
+ color: white;
+ padding: 8px 16px;
+ border-radius: 6px;
+ border: none;
+ cursor: pointer;
+}
+
+.manage-employees {
+ max-width: 800px;
+ margin: auto;
+ padding: 2rem;
+}
+
+.form-card {
+ background: #f8f8f8;
+ padding: 1rem;
+ margin-bottom: 2rem;
+ border-radius: 10px;
+}
+
+.form-grid {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+ gap: 1rem;
+}
+
+.form-grid input {
+ padding: 0.5rem;
+ border: 1px solid #ccc;
+ border-radius: 6px;
+}
+
+.employee-table {
+ width: 100%;
+ border-collapse: collapse;
+}
+
+.employee-table th,
+.employee-table td {
+ border: 1px solid #ddd;
+ padding: 0.75rem;
+ text-align: left;
+}
+
+.employee-table input {
+ width: 100%;
+ padding: 4px;
+}
+
+.employee-table button {
+ margin-right: 4px;
+ padding: 4px 8px;
+ border: none;
+ border-radius: 4px;
+ background-color: #007bff;
+ color: white;
+ cursor: pointer;
+}
+
+.employee-table button:last-child {
+ background-color: #dc3545;
+}
+
+.employee-table button:hover {
+ opacity: 0.85;
+}

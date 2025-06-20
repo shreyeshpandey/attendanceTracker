@@ -17,10 +17,16 @@ export default function Layout() {
             Attendance Tracker
           </Link>
           <Link
-            to="/summary"
-            className={location.pathname === '/summary' ? 'active' : ''}
+            to="/monthly-summary"
+            className={location.pathname === '/monthly-summary' ? 'active' : ''}
           >
             Monthly Summary
+          </Link>
+          <Link
+            to="/manage-employees"
+            className={location.pathname === '/manage-employees' ? 'active' : ''}
+          >
+            Manage Employees
           </Link>
         </nav>
       </aside>
