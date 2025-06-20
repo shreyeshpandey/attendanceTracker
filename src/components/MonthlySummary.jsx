@@ -16,17 +16,32 @@ export default function MonthlySummary() {
   const [summaryData, setSummaryData] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'employees'), (snapshot) => {
-      const data = snapshot.docs.map(doc => doc.data());
-      setEmployees(data);
-    });
+    setLoading(true);
+    const unsub = onSnapshot(
+      collection(db, 'employees'),
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setEmployees(data);
+        setLoading(false);
+      },
+      (err) => {
+        setError(err.message);
+        setLoading(false);
+      }
+    );
 
     return () => unsub();
   }, []);
 
   useEffect(() => {
+    setLoading(true);
     const start = startOfMonth(new Date(`${selectedMonth}-01`));
     const end = endOfMonth(new Date(`${selectedMonth}-01`));
 
@@ -36,10 +51,18 @@ export default function MonthlySummary() {
       where('date', '<=', format(end, 'yyyy-MM-dd'))
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map(doc => doc.data());
-      setAttendanceRecords(records);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const records = snapshot.docs.map((doc) => doc.data());
+        setAttendanceRecords(records);
+        setLoading(false);
+      },
+      (err) => {
+        setError(err.message);
+        setLoading(false);
+      }
+    );
 
     return () => unsub();
   }, [selectedMonth]);
@@ -58,14 +81,22 @@ export default function MonthlySummary() {
       totals[employeeId] += Number(status);
     });
 
-    const result = employees.map(emp => ({
-      id: emp.id,
-      name: emp.name,
-      total: totals[emp.id] || 0,
-    }));
+    const result = employees
+      .map((emp) => ({
+        id: emp.id,
+        name: emp.name,
+        total: totals[emp.id] || 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     setSummaryData(result);
   }, [employees, attendanceRecords]);
+
+  const topAttendance = summaryData.length
+    ? Math.max(...summaryData.map((emp) => emp.total))
+    : 0;
+
+  const grandTotal = summaryData.reduce((sum, emp) => sum + emp.total, 0);
 
   return (
     <div className="tracker-wrapper">
@@ -77,26 +108,55 @@ export default function MonthlySummary() {
             type="month"
             className="month-picker"
             value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
+            aria-label="Select month"
+            onChange={(e) => setSelectedMonth(e.target.value)}
           />
         </div>
 
-        <table className="attendance-table">
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>Total Attendance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summaryData.map(emp => (
-              <tr key={emp.id}>
-                <td>{emp.name}</td>
-                <td>{emp.total}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* 🔄 Loading */}
+        {loading && <p style={{ textAlign: 'center' }}>Loading data...</p>}
+
+        {/* ⚠️ Error */}
+        {error && <p style={{ textAlign: 'center', color: 'red' }}>{error}</p>}
+
+        {/* 📭 Empty */}
+        {!loading && summaryData.length === 0 && (
+          <p style={{ textAlign: 'center' }}>No attendance data found for this month.</p>
+        )}
+
+        {/* ✅ Data Table */}
+        {!loading && summaryData.length > 0 && (
+          <>
+            <table className="attendance-table">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Total Attendance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summaryData.map((emp) => (
+                  <tr
+                    key={emp.id}
+                    style={
+                      emp.total === topAttendance
+                        ? { backgroundColor: '#e0f7e9', fontWeight: 'bold' }
+                        : {}
+                    }
+                  >
+                    <td>{emp.name}</td>
+                    <td>{emp.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* 📊 Total */}
+            <p style={{ textAlign: 'right', marginTop: '1rem' }}>
+              <strong>Total Attendance of All Employees:</strong> {grandTotal}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
