@@ -10,7 +10,9 @@ import { startOfMonth, endOfMonth, format } from 'date-fns';
 import '../styles/style.css';
 import { useSiteFilter } from '../context/SiteFilterContext';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // ✅ This is required
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 export default function MonthlySummary() {
   const { siteFilter } = useSiteFilter();
@@ -70,40 +72,50 @@ export default function MonthlySummary() {
   }, [selectedMonth]);
 
   useEffect(() => {
-    if (employees.length === 0 || attendanceRecords.length === 0) {
-      setSummaryData([]);
-      return;
+   if (employees.length === 0 || attendanceRecords.length === 0) {
+     setSummaryData([]);
+     return;
+   }
+ 
+   const filteredEmployees = siteFilter
+     ? employees.filter((emp) => emp.site.toLowerCase() === siteFilter.toLowerCase())
+     : employees;
+ 
+   const totals = {};
+   attendanceRecords.forEach(({ employeeId, status, target }) => {
+    const numericStatus = status === '' || status === undefined || status === null
+      ? (target ? Number(target) : 0)
+      : Number(status);
+  
+    if (!totals[employeeId]) {
+      totals[employeeId] = { total: 0 };
     }
-
-    const filteredEmployees = siteFilter
-      ? employees.filter((emp) => emp.site.toLowerCase() === siteFilter.toLowerCase())
-      : employees;
-
-    const totals = {};
-    attendanceRecords.forEach(({ employeeId, status }) => {
-      const numericStatus = Number(status);
-      if (!totals[employeeId]) {
-        totals[employeeId] = { total: 0 };
-      }
-      totals[employeeId].total += numericStatus;
-    });
-
-    const result = filteredEmployees
-      .map((emp) => {
-        const total = totals[emp.id]?.total || 0;
-        const rate = emp.rate || 0;
-        const payment = total * rate;
-        return {
-          id: emp.id,
-          name: emp.name,
-          total,
-          payment
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    setSummaryData(result);
-  }, [employees, attendanceRecords, siteFilter]);
+  
+    totals[employeeId].total += numericStatus;
+  });
+ 
+   const result = filteredEmployees
+     .map((emp) => {
+       const hasRecords = attendanceRecords.some((rec) => rec.employeeId === emp.id);
+       const total = hasRecords
+         ? totals[emp.id]?.total || 0
+         : emp.target
+         ? Number(emp.target)
+         : 0;
+ 
+       const rate = emp.rate || 0;
+       const payment = total * rate;
+       return {
+         id: emp.id,
+         name: emp.name,
+         total,
+         payment
+       };
+     })
+     .sort((a, b) => a.name.localeCompare(b.name));
+ 
+   setSummaryData(result);
+ }, [employees, attendanceRecords, siteFilter]);
 
   const topAttendance = summaryData.length
     ? Math.max(...summaryData.map((emp) => emp.total))
@@ -138,33 +150,126 @@ export default function MonthlySummary() {
   };
 
   const downloadPDF = () => {
-   const doc = new jsPDF();
-   doc.setFontSize(16);
-   doc.text(
-     `Monthly Attendance Summary (${selectedMonth}) – ${siteFilter || 'All Sites'}`,
-     14,
-     20
-   );
- 
-   const tableColumn = ['Name', 'Total Attendance', 'Payment'];
-   const tableRows = summaryData.map((emp) => [
-     emp.name,
-     emp.total,
-     `Rs. ${emp.payment.toFixed(2)}`
-   ]);
- 
-   autoTable(doc, {
-     startY: 30,
-     head: [tableColumn],
-     body: tableRows
-   });
- 
-   const totalPay = summaryData.reduce((sum, emp) => sum + emp.payment, 0).toFixed(2);
-   doc.text(`Total Attendance: ${grandTotal}`, 14, doc.lastAutoTable.finalY + 10);
-   doc.text(`Total Payment: Rs. ${totalPay}`, 14, doc.lastAutoTable.finalY + 20);
- 
-   doc.save(`Monthly_Summary_${selectedMonth}_${siteFilter || 'All'}.pdf`);
- };
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(
+      `Monthly Attendance Summary (${selectedMonth}) – ${siteFilter || 'All Sites'}`,
+      14,
+      20
+    );
+
+    const tableColumn = ['Name', 'Total Attendance', 'Payment'];
+    const tableRows = summaryData.map((emp) => [
+      emp.name,
+      emp.total,
+      `Rs. ${emp.payment.toFixed(2)}`
+    ]);
+
+    autoTable(doc, {
+      startY: 30,
+      head: [tableColumn],
+      body: tableRows
+    });
+
+    const totalPay = summaryData.reduce((sum, emp) => sum + emp.payment, 0).toFixed(2);
+    doc.text(`Total Attendance: ${grandTotal}`, 14, doc.lastAutoTable.finalY + 10);
+    doc.text(`Total Payment: Rs. ${totalPay}`, 14, doc.lastAutoTable.finalY + 20);
+
+    doc.save(`Monthly_Summary_${selectedMonth}_${siteFilter || 'All'}.pdf`);
+  };
+
+  const downloadAllSitesCSV = () => {
+    const sites = [...new Set(employees.map((e) => e.site))].sort();
+
+    const wb = XLSX.utils.book_new();
+
+    sites.forEach((site) => {
+      const siteEmployees = employees.filter((e) => e.site === site);
+      const siteData = siteEmployees.map((emp) => {
+        const total = attendanceRecords
+          .filter((rec) => rec.employeeId === emp.id)
+          .reduce((sum, rec) => sum + Number(rec.status), 0);
+        const payment = total * (emp.rate || 0);
+
+        return {
+          Name: emp.name,
+          'Total Attendance': total,
+          Payment: `Rs. ${payment.toFixed(2)}`
+        };
+      });
+
+      const subtotalAttendance = siteData.reduce((sum, e) => sum + e['Total Attendance'], 0);
+      const subtotalPayment = siteData.reduce((sum, e) => sum + Number(e.Payment.replace('Rs. ', '')), 0);
+
+      siteData.push({
+        Name: 'Subtotal',
+        'Total Attendance': subtotalAttendance,
+        Payment: `Rs. ${subtotalPayment.toFixed(2)}`
+      });
+
+      const ws = XLSX.utils.json_to_sheet(siteData);
+      XLSX.utils.book_append_sheet(wb, ws, site);
+    });
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    saveAs(new Blob([wbout], { type: 'application/octet-stream' }), `All_Sites_Summary_${selectedMonth}.xlsx`);
+  };
+
+  const downloadAllSitesPDF = () => {
+    const doc = new jsPDF();
+    const sites = [...new Set(employees.map((e) => e.site))].sort();
+
+    let grandTotalAttendance = 0;
+    let grandTotalPayment = 0;
+
+    sites.forEach((site, index) => {
+      if (index !== 0) doc.addPage();
+
+      doc.setFontSize(16);
+      doc.text(`Monthly Attendance Summary – ${selectedMonth}`, 14, 20);
+      doc.setFontSize(13);
+      doc.text(`Site: ${site}`, 14, 30);
+
+      const siteEmployees = employees.filter((e) => e.site === site);
+      const siteData = siteEmployees.map((emp) => {
+        const total = attendanceRecords
+          .filter((rec) => rec.employeeId === emp.id)
+          .reduce((sum, rec) => sum + Number(rec.status), 0);
+        const payment = total * (emp.rate || 0);
+
+        grandTotalAttendance += total;
+        grandTotalPayment += payment;
+
+        return { ...emp, total, payment };
+      });
+
+      const tableRows = siteData.map((emp) => [
+        emp.name,
+        emp.total,
+        `Rs. ${emp.payment.toFixed(2)}`
+      ]);
+
+      autoTable(doc, {
+        startY: 35,
+        head: [['Name', 'Total Attendance', 'Payment']],
+        body: tableRows,
+      });
+
+      const subtotalAttendance = siteData.reduce((sum, e) => sum + e.total, 0);
+      const subtotalPayment = siteData.reduce((sum, e) => sum + e.payment, 0);
+
+      const endY = doc.lastAutoTable.finalY + 10;
+      doc.text(`Subtotal Attendance: ${subtotalAttendance}`, 14, endY);
+      doc.text(`Subtotal Payment: Rs. ${subtotalPayment.toFixed(2)}`, 14, endY + 10);
+    });
+
+    const lastY = doc.lastAutoTable.finalY + 30;
+    doc.setFontSize(14);
+    doc.text(`Grand Total Attendance (All Sites): ${grandTotalAttendance}`, 14, lastY);
+    doc.text(`Grand Total Payment (All Sites): Rs. ${grandTotalPayment.toFixed(2)}`, 14, lastY + 10);
+
+    doc.save(`All_Sites_Summary_${selectedMonth}.pdf`);
+  };
 
   return (
     <div className="tracker-wrapper">
@@ -194,13 +299,32 @@ export default function MonthlySummary() {
 
         {!loading && summaryData.length > 0 && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', margin: '0.5rem 0' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'flex-end',
+                gap: '0.5rem',
+                margin: '0.5rem 0'
+              }}
+            >
               <button onClick={downloadCSV} className="btn-export">
                 📥 Download CSV
               </button>
               <button onClick={downloadPDF} className="btn-export">
                 📄 Download PDF
               </button>
+
+              {siteFilter === '' && (
+                <>
+                  <button onClick={downloadAllSitesPDF} className="btn-export">
+                    🗂 All Sites PDF
+                  </button>
+                  <button onClick={downloadAllSitesCSV} className="btn-export">
+                    📥 All Sites CSV
+                  </button>
+                </>
+              )}
             </div>
 
             <table className="attendance-table">

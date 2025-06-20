@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import '../styles/style.css';
 import { useAuth } from '../context/AuthContext';
-import { useSiteFilter } from '../context/SiteFilterContext'; // ✅ NEW
+import { useSiteFilter } from '../context/SiteFilterContext';
 
 const ATTENDANCE_TYPES = [
   { label: 'Absent', value: 0 },
@@ -23,7 +23,7 @@ const ATTENDANCE_TYPES = [
 
 export default function AttendanceTracker() {
   const { role } = useAuth();
-  const { siteFilter } = useSiteFilter(); // ✅ USE FILTER
+  const { siteFilter } = useSiteFilter();
   const [selectedDate, setSelectedDate] = useState(() =>
     format(new Date(), 'yyyy-MM-dd')
   );
@@ -95,6 +95,15 @@ export default function AttendanceTracker() {
       [field]: field === 'status' ? Number(value) : value,
     };
 
+    // ✅ Only skip saving if all fields are empty
+    const isStatusEmpty = updated.status === '' || updated.status === undefined;
+    const isTargetEmpty = !updated.target;
+    const isCommentEmpty = !updated.comment;
+
+    if (isStatusEmpty && isTargetEmpty && isCommentEmpty) {
+      return; // Nothing to save
+    }
+
     try {
       await setDoc(doc(db, 'attendance', docId), updated);
       setAttendanceData((prev) => ({
@@ -107,11 +116,10 @@ export default function AttendanceTracker() {
     }
   };
 
-  // ✅ Filter employees based on global siteFilter
   const filteredEmployees = siteFilter
     ? employees.filter((emp) => emp.site.toLowerCase() === siteFilter.toLowerCase())
     : employees;
-    console.log('Current siteFilter:', siteFilter);
+
   return (
     <div className="tracker-wrapper">
       <div className="tracker-container">
